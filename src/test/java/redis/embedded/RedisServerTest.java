@@ -108,6 +108,47 @@ public class RedisServerTest {
                 .build();
     }
 
+	/**
+	 * 특정버전의 redis executor 를 사용하도록 하였음
+	 * @throws Exception
+	 */
+	@Test
+	public void shouldOverrideCustomExecutable() throws Exception {
+		RedisExecProvider customProvider = RedisExecProvider.defaultProvider()
+				.override(OS.UNIX, Architecture.x86, Resources.getResource("redis-server-2.8.19-32").getFile())
+				.override(OS.UNIX, Architecture.x86_64, Resources.getResource("redis-server-5.0.12").getFile())
+				.override(OS.WINDOWS, Architecture.x86, Resources.getResource("redis-server-3.0.504.exe").getFile())
+				.override(OS.WINDOWS, Architecture.x86_64, Resources.getResource("redis-server-3.0.504.exe").getFile())
+				.override(OS.MAC_OS_X, Resources.getResource("redis-server-5.0.12").getFile());
+
+		redisServer = new RedisServerBuilder()
+				.redisExecProvider(customProvider)
+				.port(6379)
+				.build();
+
+		redisServer.start();
+
+		JedisPool pool = null;
+		Jedis jedis = null;
+		try {
+			pool = new JedisPool("localhost", redisServer.ports().get(0));
+			jedis = pool.getResource();
+
+			/**
+			 * 아래의 오퍼레이션이 사용 가능하다.
+			 */
+			jedis.geoadd("GEO", 126.97683119199652, 37.57813267941899, "경복궁");
+
+		} finally {
+			if (jedis != null)
+				pool.returnResource(jedis);
+			redisServer.stop();
+		}
+
+		redisServer.stop();
+	}
+
+
     @Test(expected = RedisBuildingException.class)
     public void shouldFailWhenBadExecutableGiven() throws Exception {
         RedisExecProvider buggyProvider = RedisExecProvider.defaultProvider()
